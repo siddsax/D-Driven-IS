@@ -1,6 +1,6 @@
 # Instance Selection on Big Data
 
-[Link to report](http://ec2-35-161-213-44.us-west-2.compute.amazonaws.com/EnvestnetYodlee/TDE/blob/samping_siddsax/report.pdf)
+[Link to report](https://github.com/siddsax/TDE/blob/master/report.pdf)
 
 Pipeline for running the code accompanying our work in instance selection.
 
