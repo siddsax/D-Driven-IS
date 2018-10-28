@@ -1,12 +1,8 @@
-# Instance Selection on Big Data
-
-[Link to report](https://github.com/siddsax/TDE/blob/master/report.pdf)
-
-Pipeline for running the code accompanying our work in instance selection.
+# Data Driven Instance Selection
 
 ### Problem
 
-Extract descriptions from the whole dataspace that form archetypes in a data-driven manner.
+Extract descriptions from the data and create a summary of the data.
 
 Tasks done by this code
  * Extract descroptions from the data
@@ -15,58 +11,23 @@ Tasks done by this code
  * Use those vectors to cluster the data using K-means clustering implemented in spark that is as efficient as possible.
  * Cluster new data using the model learned
 
-
-And here's the code! :+1:
-
-```bash
-cut -d’|’ -f{column number} {Data file} > data.txt
-```
-It extracts the required column from the data
-```bash
-python count.py data.txt
-```
-count.py does the basic tokenization as mentioned above
-```bash
-python tail.py data.txt {number of final samples}
-```
-tail.py further samples the data from the input file so that the output contains a flatter word distribution rather than the exponential distribution in the original data.
+Steps to run the code.
 
 ```bash
-python3 word2vec_CPU.py data.txt #saves the trained word encodings as word2vec_dict.npy and outputs desc_embeddings.npz as embeddings
+python count.py data.txt #Tokenization
+python tail.py data.txt {number of final samples} #subsample data to flatten word-distribution
+python3 word2vec_CPU.py data.txt #saves the trained word encodings as word2vec_dict.npy and outputs desc_embeddings.npz as word2vec embeddings of descriptions
 ```
-
 In case any error due to encodings while reading a file in python use 
 ```bash
-iconv -f us-ascii -t utf-8 Input file -c tb > Output File
-```
-It converts the input to utf-8 and removing characters that are in some other encoding.
-
-
-It learns vectors for the input descriptions and then outputs their embeddings and the learned dictionary. The size of the dictionary is by default the number of words in data although it can be set as any value as the second argument, although we highly recommend to use the dictionary as the all the words in data.
-
-```bash
-python word2vec_vectorize.py {data} {saved model/dictionary as .npz}
-```
-This is a utility tool to convert get vectors using a previosuly trained model as done in the last step.
-
-An important point in regard to word2vec is that some descriptions have no words left afte the tokenization done in it, hence it leads to NANs which are automatically removed from the output but the inital description still has those descriptions. To identify them, word2vec code also outputs a NAN.txt file which has line numbers that give NAN as output, after removing these lines the text data can also be used for analysis.
-
-
-The next part needs to be done on an EMR cluster. A note before running the code is to edit the following file and restart the resource as shown below.
-
-```bash
-sudo vim /etc/hadoop/conf/capacity-scheduler.xml
-# Replace line 36 : <value>org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator</value> with <value>org.apache.hadoop.yarn.util.resource.DominantResourceCalculator</value>
-sudo /sbin/stop hadoop-yarn-resourcemanager
-sudo /sbin/start hadoop-yarn-resourcemanager
+iconv -f us-ascii -t utf-8 Input file -c tb > Output File #converts the input to utf-8
 ```
 
-This converts the data to HDFS so that it can be loaded in spark without occupying large amount of RAM later. The following step needs to be done in a cluster with large RAM and set most of it as driver memory.  
 ```bash
 spark-submit --driver-memory {num}g np2HDFS.py desc_embeddings.npz
 ```
 
-The following code trains the K-means model on the data and then outputs it. The hyperparameters are the number of clusters and max iterations. For 15 Million datasize we worked with 10K clusters and 100 iterations. Each iteration takes 7 minutes with an initialization step also taking a lot of time as it is done using K-means|| or scalable K-means++.
+The following code trains the K-means model on the data and then outputs it. The hyperparameters are the number of clusters and max iterations. It uses K-means|| aka scalable K-means++.
 
 The option --executorer-memory also needs to be set if working on a cluster with several slaves. In case the slaves go out of memory increase the number of partitions being done. Ideally when there is ample meory, the ideal number of partions is twice the number of cores in the machine. To check if parallyzation is working, it is a good idea to check the utilization of all the cpu cores.
 
@@ -74,7 +35,7 @@ The option --executorer-memory also needs to be set if working on a cluster with
 spark-submit --driver-memory {num}g kmeans-save.py HDFSdesc_embeddings.npz {Number of clusters} { Max no of iterations} 
 ```
 
-Finally we need to classify the data points in the cluters using the petrained model.
+Classify the data points in the cluters using the petrained model.
 ```bash
 spark-submit sampling-kmeans.py HDFSdesc_embeddings.npz Final_Output_Clusters/
 ```
