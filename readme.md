@@ -4,13 +4,12 @@
 The problem is to sub-sample datapoints from a large amount of data so that further machine learning models can be efficiently trained on it on large volumes of data.
 
 ### Dependencies
-```
-PySpark
-nltk 
-nltk stopwords 
-sklearn
-TensorFlow
-```
+
+* PySpark 
+* nltk stopwords 
+* sklearn
+* TensorFlow
+
 
 ### Steps
 First, the data needs to be pre-processed by tokenization and balancing word-distribution.
