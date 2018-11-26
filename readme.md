@@ -1,48 +1,63 @@
 # Data Driven Instance Selection
 
 ### Problem
+The problem is to sub-sample datapoints from a large amount of data so that further machine learning models can be efficiently trained on it on large volumes of data.
 
-Extract descriptions from the data and create a summary of the data.
+### Dependencies
+```
+PySpark
+nltk 
+nltk stopwords 
+sklearn
+TensorFlow
+```
 
-Tasks done by this code
- * Extract descroptions from the data
- * Do some basic tokenization like removing special characters and converting to small letters. More importantly it removes the duplicates after this.
- * Get vectors from the descriptions using word2vec
- * Use those vectors to cluster the data using K-means clustering implemented in spark that is as efficient as possible.
- * Cluster new data using the model learned
-
-Steps to run the code.
+### Steps
+First, the data needs to be pre-processed by tokenization and balancing word-distribution.
 
 ```bash
 python count.py data.txt #Tokenization
 python tail.py data.txt {number of final samples} #subsample data to flatten word-distribution
+```
+This leads to data with following word-distribution.
+
+<img src="https://github.com/siddsax/D-Driven-IS/blob/master/sorted_freq_full.png" width="400"> <img src="https://github.com/siddsax/D-Driven-IS/blob/master/sorted_freq_sloped.png" width="400">
+
+*Left: Original after tokenization. Right: After word-distribution flattening*
+
+After this, a word2vec model needs to be trained over the descriptions to generate good features for models to be used on top of this. We use sentence vectors to represent a description that is the mean of the word2vec features of all the words in the description.
+
+```bash
 python3 word2vec_CPU.py data.txt #saves the trained word encodings as word2vec_dict.npy and outputs desc_embeddings.npz as word2vec embeddings of descriptions
 ```
-In case any error due to encodings while reading a file in python use 
-```bash
-iconv -f us-ascii -t utf-8 Input file -c tb > Output File #converts the input to utf-8
-```
+ 
+Now a large-scale K-means|| model can be run on this data that also paralyzes the training process. Here the number of clusters and max iterations are two hyper-parameters that need to be set. The option --executorer-memory also needs to be set if working on a cluster with several slaves. 
 
 ```bash
 spark-submit --driver-memory {num}g np2HDFS.py desc_embeddings.npz
 ```
 
-The following code trains the K-means model on the data and then outputs it. The hyperparameters are the number of clusters and max iterations. It uses K-means|| aka scalable K-means++.
-
-The option --executorer-memory also needs to be set if working on a cluster with several slaves. In case the slaves go out of memory increase the number of partitions being done. Ideally when there is ample meory, the ideal number of partions is twice the number of cores in the machine. To check if parallyzation is working, it is a good idea to check the utilization of all the cpu cores.
+**TIP**: In case the slaves go out of memory increase the number of partitions being done. Ideally, when there is ample memory, the ideal number of partitions is twice the number of cores in the machine. To check if paralyzation is working, it is a good idea to check the utilization of all the CPU cores.
 
 ```bash
 spark-submit --driver-memory {num}g kmeans-save.py HDFSdesc_embeddings.npz {Number of clusters} { Max no of iterations} 
 ```
+This previous code, create a folder *Final_Output_CLusters* where the model is saved. This can now be used to classify new the data points to different clusters. We do this for the descriptions stored in the file *HDFSdesc_embeddings.npz* 
 
-Classify the data points in the cluters using the petrained model.
 ```bash
-spark-submit sampling-kmeans.py HDFSdesc_embeddings.npz Final_Output_Clusters/
+spark-submit sampling-kmeans.py $DiscriptionFile Final_Output_Clusters
 ```
 
-#### Supplementary Code
+This leads to clusters with word distributions like as the following. Here one cluster has repeated occurrence of words that make sense together, which is learned from the data
 
-Add the index numbers of the clusters in line 20 and then the code finds the word frequency of the data points within it, then it can be fed to grapher.py to plot it.
+<img src="https://github.com/siddsax/D-Driven-IS/blob/master/c3.png" width="400"> <img src="https://github.com/siddsax/D-Driven-IS/blob/master/c5.png" width="400">
+
+
+#### Supplementary Code
+Some supplementary code of additional processing and plotting.
+
+To plot word-frequency graphs for clusters as above for clusters. Run the following scripts, after setting variable array in line #20 as the list of clusters to be visualized.
+
 ```bash
 python graph_script.py descriptions.txt 
 ```
@@ -52,9 +67,9 @@ It outputs cluster_{number}_word_dist.txt
 python grapher.py cluster_{number}_word_dist.txt
 ```
 
-The intial attempt to use Gaussian Mixture Model is also present in the folder GMM. It can be useful to produce better clusters on smaller data.
+The initial attempt to use the Gaussian Mixture Model is also present in the folder GMM. It can be useful to produce better clusters on smaller data.
 ```bash
-python GMM.py {data.csv} {n_cluster} {total sampled points required}	
+python GMM.py {data.csv} {n_cluster} {total sampled points required}    
 ```
 
 Further to analyze the output of word2vec and clustering K-Nearest Neighbour comes in handy. 
